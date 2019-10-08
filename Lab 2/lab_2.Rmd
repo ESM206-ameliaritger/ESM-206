@@ -1,0 +1,154 @@
+---
+title: "My First Markdown"
+author: "Amelia Ritger"
+date: "10/8/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+You don't need a # when writing text in R Markdown!
+
+When in doubt, add a space
+
+# Large header
+### Medium header
+##### Small header
+
+I can make something *italicized* or **bold**
+I can make ^superscripts^ or ~subscripts~
+
+- Item 1
+- Item 2
+- Item 3
+
+I can add a regular link: https://www.ucsb.edu/
+
+Or I can just say here's the link to [UCSB](https://www.ucsb.edu/)
+
+Here's an image of teddy:
+![](teddy_utah.jpg)
+
+### Add some code in R Markdown
+
+To create a new code chunk in R, you can press the green [c] button, or alt-ctrl-i
+```{r}
+
+# if in a code chunk, comments should have a # before them
+library(tidyverse)
+library(janitor)
+library(tidyr)
+
+```
+
+
+### Read in data
+
+World bank: Environmental Indicators
+
+We're interested in CO2 emissions (kt)
+```{r}
+wb_env <- read_csv("wb_env.csv",skip=4)
+country_list <- read_csv("country_list.csv")
+
+```
+
+### Use pivot_longer() to gather all of the years together
+
+```{r}
+
+wb_tidy <- wb_env %>%
+  pivot_longer('1960':'2018',
+               names_to="Year",
+               values_to="Value")
+  
+```
+
+Now we're going to do some cleaning and wrangling
+
+janitor::clean_names() to convert ALL columns to a case of your choosing
+```{r}
+
+wb_df <- wb_tidy %>%
+  clean_names() %>%
+  select(-x64, -indicator_code, -country_code) %>%
+  mutate(year=as.numeric(year))
+
+```
+
+### Now, find a summary statistic for total CO2 emitted by country from 2008-2018
+
+```{r}
+
+wb_co2 <- wb_df %>%
+  filter(indicator_name=="CO2 emissions (kt)") %>%
+  filter(between(year, 2008, 2018)) %>%
+  group_by(country_name) %>%
+  summarize(total=sum(value, na.rm=TRUE)) %>% #if there are any NAs in the group R will return NA for the sum
+  arrange(-total) #totals will be displayed largest -> smallest values
+
+```
+
+### Now use dplyr::inner_join to only keep observations where the country matches in country_list and wb_co2
+
+Make matching column names that we want to join by:
+```{r}
+
+country_ls_new <- country_list %>%
+  rename(country_name = country)
+
+# Join data frames together to only keep observations where country_name has a match in both data frames
+# The safer join is full_join(), which keeps every observation in both data frames, even if it doesn't have a match
+
+wb_join <- wb_co2 %>%
+  inner_join(country_ls_new)
+
+# Use anti_join() to check what doesn't match
+# What existed in the country_name column of the country_ls_new data that doesn't show up in wb_join?
+
+no_match <- country_ls_new %>%
+  anti_join(wb_join)
+  
+```
+
+### Use head() function to get the top(n) rows
+
+Another option from dplyr::top_n()
+```{r}
+
+co2_top20 <- wb_join %>%
+  head(20)
+
+```
+
+### Graphs with ggplot2
+
+A graph 
+```{r}
+
+ggplot(data=co2_top20, aes(x=fct_reorder(country_name, -total),
+                           y=total)) + #order country_name by total values in descending order
+  geom_col() +
+  theme_minimal() +
+  coord_flip()
+
+```
+
+Now we'll make a lollipop plot:
+```{r, eval=TRUE}
+#ctrl shift c
+ggplot(co2_top20, aes(y=fct_reorder(country_name, total),
+                      x=total)) +
+  geom_point(aes(color=total),
+             size=3,
+             show.legend=FALSE) +
+   geom_segment(aes(x=0,
+                   y=country_name,
+                    xend=total,
+                    yend=country_name,
+                    color=total)) +
+  scale_color_gradientn(colors = c("orange","magenta","purple"), guide=FALSE)
+  
+```
