@@ -6,15 +6,12 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message=FALSE)
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
 ```
 
-## Lab 3
 ### R Markdown, data vizualization, here, dplyr::case_when()
 
 ##### Part 1: Attach packages
-
-We'll use tidyverse, here, janitor, ggridges
 ```{r}
 library(tidyverse)
 library(here) #gives R universal way to look within folders for file you're calling
@@ -22,17 +19,101 @@ library(janitor)
 library(ggridges)
 ```
 
-
-#### Part 2: Read in data from plain text file
+##### Part 2: Read in data from .txt
 ```{r}
-sb_buoy <- read_table(here::here("Lab_3", "raw_data", "sb_buoy_2018.txt"))
+sb_buoy <- read_table(here::here("Lab_3", "raw_data", "sb_buoy_2018.txt"),
+                      na = c("99", "99.0", "99.00", "999", "999.0", "999.00")) %>% #replace missing values with various random nubers with NA
+  janitor::clean_names() %>%
+  dplyr::slice(-1) %>% #remove first row
+  dplyr::select(number_yy:gst,atmp)
+```
+
+##### Part 3: Write a data frame to a .csv
+```{r}
+write_csv(sb_buoy, here::here("Lab_3", "intermediate_data", "sb_buoy.csv"))
+```
+
+##### Part 4: Wrangling to get months as an ordered factor with month abbreviations
+```{r}
+sb_buoy_month <-sb_buoy %>% 
+  mutate(mm = as.numeric(mm)) %>% 
+  mutate(month_name = month.abb[mm]) %>% # utilize month.abb function, built into base R
+  mutate(month_name = fct_relevel(month_name, levels = month.abb)) # make month_name a factor, with ordered levels that match the order in month.abb
   
 ```
 
+##### Part 5: Intro to {purrr} for loops
+```{r}
+ggplot(sb_buoy_month, aes(x=month_name, y=atmp)) +
+  geom_jitter()
+```
 
+Gross! Darn R, variables should be numeric are actually still stored as characters. We want to update ALL columns currently "character" to "numeric"
 
+```{r}
+sb_buoy_num <- sb_buoy_month %>%
+  purrr::modify_if(is.character, as.numeric)
+```
 
+##### Part 6: Data visualization
+```{r}
+ggplot(sb_buoy_num, aes(x=month_name, y=atmp)) +
+  geom_jitter(aes(color=month_name),
+              alpha=0.5) #make points 50% transparent
 
+ggplot(sb_buoy_num, aes(x=month_name, y=atmp)) +
+  geom_violin(aes(color=month_name,
+                  fill=month_name),
+              show.legend = FALSE) +
+  theme_minimal() +
+  facet_wrap(~month_name) #bad idea here because it makes comparisons difficult
+```
+
+Faceted graph (by month) overlayed onto population distribution:
+```{r}
+ggplot(sb_buoy_num, aes(x=atmp)) +
+  geom_histogram(data=transform(sb_buoy_num, month_name=NULL), fill="gray90") + #transform() is base R function; plot overall population
+  geom_histogram(aes(fill=month_name), show.legend = FALSE) + #create histograms color coded for each month
+  facet_wrap(~month_name) + #facet by month_name
+  theme_minimal()
+
+ggsave(here::here("Lab_3", "figures", "temp_hist.png"), width=6, height=6)
+```
+
+Now, a ridgeline plot
+```{r}
+temp_graph <- ggplot(sb_buoy_num, aes(x=atmp, y=month_name)) +
+  geom_density_ridges(aes(fill=month_name),
+                      show.legend=FALSE) +
+  scale_x_continuous(limits=c(5,25), #change min and max values on x axis
+                     expand=c(0,0)) + #get rid of any default expansion
+  theme_light()
+
+temp_graph
+ggsave(here::here("Lab_3", "figures", "temp_ridges.pdf"), width=4, height=4, dpi=150)
+```
+
+Now, let's look at windspeed and direction
+```{r}
+ggplot(sb_buoy_num, aes(x=wdir, y=wspd)) +
+  geom_hex() +
+  scale_fill_gradient(low="orange", high="blue")
+```
+
+Plot these windspeed/densities on a polar coordinate system
+```{r}
+ggplot(sb_buoy_num, aes(x=wdir, y=wspd)) +
+  geom_density_2d(size=0.2, #make lines thinner
+                  show.legend=FALSE,
+                  aes(color=month_name)) +
+  scale_x_continuous(breaks=c(0,90,180,270), #tell R cutoffs at 0/90/180/270
+                     labels=c("N", "E", "S", "W")) + #relabel these cutoffs as compass headings
+  coord_polar() +
+  facet_wrap(~month_name) +
+  theme_minimal()
+
+ggsave(here::here("Lab_3", "figures", "sb_wind.png"), width=7, height=7)
+```
 
 
 
