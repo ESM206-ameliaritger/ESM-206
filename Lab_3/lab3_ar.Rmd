@@ -1,0 +1,40 @@
+---
+title: "Lab 3"
+author: "Amelia Ritger"
+date: "10/15/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE)
+```
+
+## Lab 3
+### R Markdown, data vizualization, here, dplyr::case_when()
+
+##### Part 1: Attach packages
+
+We'll use tidyverse, here, janitor, ggridges
+```{r}
+library(tidyverse)
+library(here) #gives R universal way to look within folders for file you're calling
+library(janitor)
+library(ggridges)
+```
+
+
+#### Part 2: Read in data from plain text file
+```{r}
+sb_buoy <- read_table(here::here("Lab_3", "raw_data", "sb_buoy_2018.txt"))
+  
+```
+
+
+
+
+
+
+
+
+
+
